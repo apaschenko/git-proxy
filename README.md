@@ -23,7 +23,7 @@ It's used for an unstable / slow network for transparent proxy git repositories.
 
 * Add to `~/.ssh/authorized_keys` a line for your autentification:
 
-  > command="/path/to/this/script[ <key file name>]", <your ssh public key>
+  > command="/path/to/this/script", <your ssh public key>
 
   In order for the git proxy to connect to git servers using the ssh 
   protocol, you should add a private key to the folder ~/.ssh on git proxy
