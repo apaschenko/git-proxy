@@ -11,7 +11,7 @@ It's used for an unstable / slow network for transparent proxy git repositories.
 * Generate your SSH-key pair (if it does not exist)
 
 ### On the proxy host:
-* Make sure the git and openssh-server are installed
+* Make sure the git (version >= 2.3) and openssh-server are installed
 * For security reasons, create a separate user for the proxy to work without
   root privilegions.
 * Log in to it. All of the following actions perform from this user.
@@ -20,7 +20,9 @@ It's used for an unstable / slow network for transparent proxy git repositories.
 * In order for the git proxy to connect to git servers using the ssh 
   protocol, you should add private keys to the folder ~/.ssh of the
   git proxy host.
-
+  Warning, it is important: you MUST set permissions 400 for the each of 
+  keys files:
+  `chmod 400 /path/to/key/file`
 * Add to `~/.ssh/authorized_keys` a line for your autentification:
 
   > command="/path/to/this/script", your-ssh-public-key
@@ -32,15 +34,19 @@ It's used for an unstable / slow network for transparent proxy git repositories.
   For example, let `~/.ssh/authorized_keys` contains follow lines:
 
 > ssh-rca AAA...BaNG arthur@schopenhauer
-> command="/path/to/script", ssh-rca AAA...WoW john@tolkien
+> command="/path/to/this/file", ssh-rca AAA...WoW john@tolkien
+> command="/path/to/this/file /path/to/key", ssh-rca AAA...RrU terry@pratchett
 
- As we can see, two users of this host are described here. Lines (from top)
+ As we can see, three users of this host are described here. Lines (from top)
  to bottom):
-  Public key `AAA...BaNG (arthur@schopenhauer)`: this user can 
+  * Public key `AAA...BaNG (arthur@schopenhauer)`: this user can 
     enter this host by ssh, but don't use the git proxy (this script file).
-  Public key `AAA...WoW (john@tolkien)`: this user can enter this 
+  * Public key `AAA...WoW (john@tolkien)`: this user can enter this 
     host and can use the git proxy. Git proxy will use the default key
-    (usually it is `~/.ssh/id_rca`) for connections to the git servers.
+    (usually it is `~/.ssh/id_rca`) for ssh connections to the git servers.
+  * Public key `AAA...RrU (terry@pratchett)`: this user can enter this 
+    host and can use the git proxy. Git proxy will use the `/path/to/key` 
+    privacy key for ssh connections to the git servers.
 
 
 ### Return to your host and:
