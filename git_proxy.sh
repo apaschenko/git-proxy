@@ -3,7 +3,10 @@
 # ================= settings =======================
 
 LOG_FILE=${HOME}/git_proxy.log;
-LOGGING_ENABLE='Yes' # any non-zero-length string enables logging
+
+# Possible values: 'Nothing', 'Error', 'Warning', 'Info', 'Debug'
+LOGGING_LEVEL='Debug'
+
 REPOSITORIES_BASE_PATH=${HOME}/gits
 
 # ============== end of settings ===================
@@ -79,12 +82,33 @@ REPOSITORIES_BASE_PATH=${HOME}/gits
 # 
 #
 
-function log() {
-  if [[ -n ${LOGGING_ENABLE} ]]; then
-    echo "$1: $2" >> ${LOG_FILE}
-  fi
+function digital_loglevel() {
+ low_case_string=${1,,};
+
+  case "${low_case_string}" in
+    debug* )
+      echo 1 ;;
+    info* )
+      echo 2 ;;
+    warning* )
+      echo 3 ;;
+    error* )
+      echo 4 ;;
+    * )
+      echo 5 ;;
+  esac
 }
 
+function log() {
+  input_loglevel=`digital_loglevel $1`;
+
+  if [ "${input_loglevel}" -ge "${preset_loglevel}" ]; then
+    echo "$1: $2" >> ${LOG_FILE}
+  fi
+
+}
+
+preset_loglevel=`digital_loglevel $LOGGING_LEVEL`;
 
 # logging
 echo "Command is: ${SSH_ORIGINAL_COMMAND}" >> "$LOG_FILE";
@@ -92,12 +116,9 @@ echo "Command is: ${SSH_ORIGINAL_COMMAND}" >> "$LOG_FILE";
 # git pull/fetch/clone
 if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
 
-  # create a dir for the repositories if not exists
-  mkdir -p "REPOSITORIES_BASE_PATH"
-
   # format of input string: 
   # '/domain-name/http|https|ssh|git[:port]/path-to-repo'
-  
+
   # regexp for remove single quotes and a leading slash
   remove_quotes="s/[^']*'([^']*)'[^']*/\\1/g; s/^\\///";
   input_URL=$(echo "${SSH_ORIGINAL_COMMAND}" | sed -r "${remove_quotes}");
@@ -115,12 +136,16 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
   local_path="${local_path}/${top_folder_name}/${path_without_refspec}";
   [[ -n ${port} ]] && port=":${port}";
   source_URL="${protocol}://${domain_name}${port}/${path}"
+  debug_info="input_URL: ${input_URL}, protocol: ${protocol}, port: ${port}"
+  debug_info="$debug_info, local_path: $local_path, source_URL: $source_URL"
+
+  log "DEBUG: $debug_info";
 
   if [ -d "$local_path" ]; then
     current_dir=$(pwd);
     cd "${local_path}";
-    until git pull >/dev/null 2>&1; do 
-      log "ERROR: Can't pull ${local_path}" $?; 
+    until git fetch --all >/dev/null 2>&1; do 
+      log "ERROR: Can't fetch ${local_path}" $?; 
     done 
     cd "${current_dir}";
   else
@@ -133,7 +158,7 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
   if [[ $protocol == "ssh" && -n $1 ]]; then
     export GIT_SSH_COMMAND="ssh -i \"${1}\"";
   fi
-  
+
   stdbuf -i0 -o0 -e0 git-upload-pack "${local_path}";
 
 # any other command
