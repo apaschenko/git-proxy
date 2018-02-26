@@ -2,7 +2,7 @@
 
 # ================= settings =======================
 
-LOG_FILE=${HOME}/git_proxy.log;
+LOG_FILE=${HOME}/git-proxy.log;
 
 # Possible values: 'Nothing', 'Error', 'Warning', 'Info', 'Debug'
 LOGGING_LEVEL='Debug'
@@ -144,15 +144,29 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
   if [ -d "$local_path" ]; then
     current_dir=$(pwd);
     cd "${local_path}";
-    until git fetch --all >/dev/null 2>&1; do 
-      log "ERROR: Can't fetch ${local_path}" $?; 
-    done 
+    
+    if ! git fetch --all >/dev/null 2>&1; then
+      log "ERROR: Can't fetch ${local_path}" $?;
+      exit;
+    fi
+    
+    if ! git pull --all >/dev/null 2>&1; then
+      log "ERROR: Can't pull ${local_path}" $?;
+      exit;
+    fi
+
     cd "${current_dir}";
   else
     mkdir -p "$local_path";
-    until git clone "${source_URL}" "${local_path}" >/dev/null 2>&1; do
-      log "ERROR: Can't clone ${source_URL} into ${local_path}" $?; 
-    done
+    current_dir=$(pwd);
+    cd "${local_path}";
+ 
+    if ! git clone "${source_URL}" . >/dev/null 2>&1; then
+      log "ERROR: Can't clone ${source_URL} into ${local_path}" $?;
+      exit;
+    fi
+    git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*';
+    cd "${current_dir}";
   fi
 
   if [[ $protocol == "ssh" && -n $1 ]]; then
