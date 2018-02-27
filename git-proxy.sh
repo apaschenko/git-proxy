@@ -111,7 +111,7 @@ function log() {
 preset_loglevel=`digital_loglevel $LOGGING_LEVEL`;
 
 # logging
-echo "Command is: ${SSH_ORIGINAL_COMMAND}" >> "$LOG_FILE";
+log "DEBUG: Command is" "${SSH_ORIGINAL_COMMAND}";
 
 # git pull/fetch/clone
 if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
@@ -139,19 +139,14 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
   debug_info="input_URL: ${input_URL}, protocol: ${protocol}, port: ${port}"
   debug_info="$debug_info, local_path: $local_path, source_URL: $source_URL"
 
-  log "DEBUG: $debug_info";
+  log "DEBUG" "$debug_info";
 
   if [ -d "$local_path" ]; then
     current_dir=$(pwd);
     cd "${local_path}";
     
-    if ! git fetch --all >/dev/null 2>&1; then
+    if ! git remote update >/dev/null 2>&1; then
       log "ERROR: Can't fetch ${local_path}" $?;
-      exit;
-    fi
-    
-    if ! git pull --all >/dev/null 2>&1; then
-      log "ERROR: Can't pull ${local_path}" $?;
       exit;
     fi
 
@@ -161,11 +156,11 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
     current_dir=$(pwd);
     cd "${local_path}";
  
-    if ! git clone "${source_URL}" . >/dev/null 2>&1; then
+    if ! git clone --mirror "${source_URL}" . >/dev/null 2>&1; then
       log "ERROR: Can't clone ${source_URL} into ${local_path}" $?;
       exit;
     fi
-    git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*';
+
     cd "${current_dir}";
   fi
 
@@ -177,10 +172,10 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
 
 # any other command
 elif [[ -n ${SSH_ORIGINAL_COMMAND} ]]; then
-  ${SSH_ORIGINAL_COMMAND};
+  eval ${SSH_ORIGINAL_COMMAND};
 
 # missing command: we need start new interactive bash-session
 else
-  bash;
+  /bin/sh;
 fi
 
