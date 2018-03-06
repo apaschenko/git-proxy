@@ -3,6 +3,8 @@
 # ================= settings =======================
 
 LOG_FILE=${HOME}/git-proxy.log;
+LOCK_FILE=/tmp/git-proxy.lock;
+MAX_ELAPSED_TIME=1200; # in seconds
 
 # Possible values: 'Nothing', 'Error', 'Warning', 'Info', 'Debug'
 LOGGING_LEVEL='Debug'
@@ -108,6 +110,14 @@ function log() {
 
 }
 
+function lock() {
+  touch "${LOCK_FILE}"
+}
+
+function unlock() {
+  rm -f "${LOCK_FILE}"
+}
+
 preset_loglevel=`digital_loglevel $LOGGING_LEVEL`;
 
 # logging
@@ -115,6 +125,19 @@ log "DEBUG: Command is" "${SSH_ORIGINAL_COMMAND}";
 
 # git pull/fetch/clone
 if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
+
+  start_time=$(date +%s);
+  while [ -f "${LOCK_FILE}" ]; do
+    current_time=$(date +%s);
+    elapsed_time=$(( current_time - start_time ));
+    if [ "${elapsed_time}" -gt "${MAX_ELAPSED_TIME}" ]; then
+      log "WARNING" "An obsolete lock file (${LOCK_FILE}) was found and deleted";
+      unlock;
+      break;
+    fi  
+    sleep .1
+  done
+  lock;
 
   # format of input string: 
   # '/domain-name/http|https|ssh|git[:port]/path-to-repo'
@@ -141,23 +164,26 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
 
   log "DEBUG" "$debug_info";
 
-  if [ -d "$local_path" ]; then
+  if [ -d "$local_path/.git" ] || [ -d "local_path/branches" ] ; then
     current_dir=$(pwd);
     cd "${local_path}";
     
-    if ! git remote update >/dev/null 2>&1; then
-      log "ERROR: Can't fetch ${local_path}" $?;
-      exit;
+    git remote update 2>&1 | read git_output
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+      log "ERROR: Can't update ${local_path}" "$git_output";
     fi
 
     cd "${current_dir}";
   else
-    mkdir -p "$local_path";
+    rm -rf "${local_path}";
+    mkdir -p "${local_path}";
     current_dir=$(pwd);
     cd "${local_path}";
- 
-    if ! git clone --mirror "${source_URL}" . >/dev/null 2>&1; then
-      log "ERROR: Can't clone ${source_URL} into ${local_path}" $?;
+    
+    git clone --mirror "${source_URL}" . 2>&1 | read git_output;
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+      log "ERROR: Can't clone ${source_URL} into ${local_path}" "$git_output";
+      unlock;
       exit;
     fi
 
@@ -169,6 +195,7 @@ if [[ "${SSH_ORIGINAL_COMMAND}" =~ git-upload-pack\ .* ]]; then
   fi
 
   stdbuf -i0 -o0 -e0 git-upload-pack "${local_path}";
+  unlock;
 
 # any other command
 elif [[ -n ${SSH_ORIGINAL_COMMAND} ]]; then
